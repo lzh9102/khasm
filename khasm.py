@@ -15,7 +15,7 @@ CATEGORY_N = 8
 CATEGORY_A = 9
 CATEGORY_D = 10
 
-INST = {
+INSTRUCTION = {
 #   mnemonics: opcode+mode, category
     "nop":  (0b00000000, CATEGORY_N),
     "mov":  (0b00000000, CATEGORY_DA),
@@ -140,16 +140,19 @@ class Assembler(object):
             for line in f:
                 # parse
                 if not parser.parseLine(line):
-                    raise Exception("error on line %d" % (lineno))
+                    raise Exception("line %d: syntax error" % (lineno))
                 label = parser.getLabel()
                 instruction = parser.getInstruction()
                 args = parser.getArgs()
 
-                # generate code
-                if label:
-                    self._putLabel(label)
-                if instruction:
-                    self._putInstruction(instruction, args)
+                try:
+                    # generate code
+                    if label:
+                        self._putLabel(label)
+                    if instruction:
+                        self._putInstruction(instruction, args)
+                except Exception as e:
+                    raise Exception("line %d: %s" % (lineno, str(e)))
 
                 # increment line number
                 lineno += 1
@@ -165,8 +168,14 @@ class Assembler(object):
         self.codeptr += 1
 
     def _putInstruction(self, instruction, args):
-        pass
+        if instruction in ALIAS: # substitute alias
+            instruction = ALIAS[instruction]
+        if instruction not in INSTRUCTION:
+            raise Exception("unknown instruction %s" % (instruction))
 
 if __name__ == "__main__":
     asm = Assembler()
-    asm.assembleFile(sys.argv[1])
+    try:
+        asm.assembleFile(sys.argv[1])
+    except Exception as e:
+        print("error: %s" % (str(e)))
