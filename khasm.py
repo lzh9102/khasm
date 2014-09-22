@@ -80,33 +80,84 @@ ALIAS = {
     "blo": "bcc",
 }
 
+class AsmLineParser(object):
+
+    def __init__(self):
+        self.label = None
+        self.instruction = ""
+        self.args = []
+
+    def getLabel(self):
+        return self.label
+
+    def getInstruction(self):
+        return self.instruction
+
+    def getArgs(self):
+        return self.args
+
+    def parseLine(self, line):
+        assert(type(line) == str)
+        match = re.match(r"\s*((?P<label>[a-zA-Z0-9_$]+):)?\s*(?P<inst>[a-zA-Z0-9_]+)(\s+(?P<argline>.*))$",
+                         line)
+        if match:
+            self.label = match.group('label')
+            self.instruction = match.group('inst')
+            argline = match.group('argline')
+            self.args = self.parseArgLine(argline)
+            return True
+        else:
+            return False
+
+    def parseArgLine(self, line):
+        assert(line == None or type(line) == str)
+        if line == None or line.strip() == "":
+            return []
+        args = []
+        for token in line.split(","):
+            arg = token.strip()
+            if arg == "": # error: empty argument
+                return None
+            args.append(arg)
+        return args
+
+
 class Assembler(object):
 
-    def __init__(self, filename):
+    def __init__(self):
         self.code = {}
         self.labels = {}
         self.codeptr = 0
+
+    def assembleFile(self, filename):
         self._parseFile(filename)
 
     def _parseFile(self, filename):
+        assert(type(filename) == str)
         with open(filename, "r") as f:
+            parser = AsmLineParser()
             for line in f:
-                self._parseLine(line)
+                parser.parseLine(line)
+                label = parser.getLabel()
+                instruction = parser.getInstruction()
+                args = parser.getArgs()
+                if label:
+                    self._putLabel(label)
+                self._putInstruction(instruction, args)
 
-    def _parseLine(self, line):
-        pass
-
-    def _genLabel(self, label):
+    def _putLabel(self, label):
+        assert(type(label) == str)
         self.labels[label] = self.codeptr
 
-    def _genCode(self, code):
+    def _putCode(self, code):
         """ generate a 32-bit integer code """
         assert(type(code) == int)
         self.code[self.codeptr] = code
         self.codeptr += 1
 
-    def _genInstruction(self, mnemonics, args):
+    def _putInstruction(self, instruction, args):
         pass
 
 if __name__ == "__main__":
-    asm = Assembler(sys.argv[1])
+    asm = Assembler()
+    asm.assembleFile(sys.argv[1])
