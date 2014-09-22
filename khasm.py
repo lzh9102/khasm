@@ -136,15 +136,23 @@ class Assembler(object):
         assert(type(filename) == str)
         with open(filename, "r") as f:
             parser = AsmLineParser()
+            lineno = 1
             for line in f:
-                parser.parseLine(line)
+                # parse
+                if not parser.parseLine(line):
+                    raise Exception("error on line %d" % (lineno))
                 label = parser.getLabel()
                 instruction = parser.getInstruction()
                 args = parser.getArgs()
+
+                # generate code
                 if label:
                     self._putLabel(label)
                 if instruction:
                     self._putInstruction(instruction, args)
+
+                # increment line number
+                lineno += 1
 
     def _putLabel(self, label):
         assert(type(label) == str)
