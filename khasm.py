@@ -98,7 +98,7 @@ class AsmLineParser(object):
 
     def parseLine(self, line):
         assert(type(line) == str)
-        match = re.match(r"\s*((?P<label>[a-zA-Z0-9_$]+):)?\s*(?P<inst>[a-zA-Z0-9_]+)(\s+(?P<argline>.*))$",
+        match = re.match(r"\s*((?P<label>[a-zA-Z0-9_$]+):)?\s*(?P<inst>[a-zA-Z0-9_]+)?(\s+(?P<argline>.*))$",
                          line)
         if match:
             self.label = match.group('label')
@@ -143,7 +143,8 @@ class Assembler(object):
                 args = parser.getArgs()
                 if label:
                     self._putLabel(label)
-                self._putInstruction(instruction, args)
+                if instruction:
+                    self._putInstruction(instruction, args)
 
     def _putLabel(self, label):
         assert(type(label) == str)

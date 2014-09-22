@@ -8,15 +8,20 @@ class TestAsmLineParser(unittest.TestCase):
     def testParseLine(self):
         asm = khasm.AsmLineParser()
         # with label
-        asm.parseLine("label: inst a1, a2, a3")
+        self.assertTrue(asm.parseLine("label: inst a1, a2, a3"))
         self.assertEqual(asm.getLabel(), "label")
         self.assertEqual(asm.getInstruction(), "inst")
         self.assertListEqual(asm.getArgs(), ["a1", "a2", "a3"])
         # without label
-        asm.parseLine("inst a1, a2, a3")
+        self.assertTrue(asm.parseLine("inst a1, a2, a3"))
         self.assertEqual(asm.getLabel(), None)
         self.assertEqual(asm.getInstruction(), "inst")
         self.assertListEqual(asm.getArgs(), ["a1", "a2", "a3"])
+        # empty line
+        self.assertTrue(asm.parseLine("  "))
+        self.assertEqual(asm.getLabel(), None)
+        self.assertEqual(asm.getInstruction(), None)
+        self.assertListEqual(asm.getArgs(), [])
 
     def testParseArgLine(self):
         asm = khasm.AsmLineParser()
