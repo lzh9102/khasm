@@ -86,6 +86,9 @@ class Assembler(object):
         self.code = {}
         self.labels = {}
         self.codeptr = 0
+        self._parseFile(filename)
+
+    def _parseFile(self, filename):
         with open(filename, "r") as f:
             for line in f:
                 self._parseLine(line)
