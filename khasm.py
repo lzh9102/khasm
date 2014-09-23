@@ -387,12 +387,24 @@ class CoeWriter(object):
             line = '{0:032b},\n'.format(code[index])
             self.fout.write(line)
 
+class TextFormatWriter(object):
+
+    def __init__(self, file=sys.stdout):
+        self.fout = file
+
+    def write(self, code):
+        assert(type(code) == dict)
+        for index in sorted(code.keys()):
+            assert(type(index) == int)
+            line = "%(addr)x %(value)x\n" % {'addr': index, 'value': code[index]}
+            self.fout.write(line)
+
 if __name__ == "__main__":
     asm = Assembler()
     try:
         code = asm.assembleFile(sys.argv[1])
-        with open("output.coe", "w") as f:
-            writer = CoeWriter(f)
+        with open("output.txt", "w") as f:
+            writer = TextFormatWriter(f)
             writer.write(code)
     except AsmException as e:
         print("error: %s" % (str(e)))
