@@ -103,6 +103,20 @@ def regToInt(name):
             return index
     raise AsmException("incorrect register %s" % name)
 
+def nBitInteger(s, bits):
+    """ Convert string 's' to an n-bit signed integer.
+        Raises an exception if s cannot be accommodated in an n-bit signed integer
+    """
+    try:
+        value = int(s)
+        rep = ('{0:' + str(bits) + 'b}').format(value)
+        if len(rep) > bits:
+            raise AsmException("immediate value excceeds %d bit: %s"
+                                % (bits, s))
+        return value
+    except ValueError:
+        raise AsmException("invalid integer value: %s" % s)
+
 def int16(s):
     """ convert string to 16 bit signed integer representation """
     try:
@@ -279,14 +293,7 @@ class Assembler(object):
     def _generateImmediate(self, imm, bits):
         assert(type(imm) == str)
         assert(type(bits) == int)
-        try:
-            value = int(s)
-            rep = ('{0:' + bits + 'b}').format(value)
-            if len(rep) > bits:
-                raise AsmException("immediate value excceeds %d bit: %s"
-                                   % (bits, s))
-        except Exception:
-            raise AsmException("incorrect immediate value: %s" % imm)
+        return nBitInteger(imm, bits)
 
     def _putInstruction_DA(self, opcode, args):
         reg_d = self._generateRegister(args[0])
@@ -301,7 +308,7 @@ class Assembler(object):
     def _putInstruction_DAI(self, opcode, args):
         reg_d = self._generateRegister(args[0])
         reg_a = self._generateRegister(args[1])
-        imm = self._generateRegister(args[2], 16)
+        imm = self._generateImmediate(args[2], 16)
         self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | imm)
 
     def _putInstruction_DAB(self, opcode, args):
