@@ -144,6 +144,7 @@ class AsmLineParser(object):
 
     def parseLine(self, line):
         assert(type(line) == str)
+        line = re.sub(r";.*", "", line) # strip comments
         match = re.match(r"\s*((?P<label>[a-zA-Z0-9_$]+):)?\s*(?P<inst>[a-zA-Z0-9_]+)?(\s+(?P<argline>.*))$",
                          line)
         if match:
@@ -175,16 +176,18 @@ class Assembler(object):
 
     def assembleFile(self, filename):
         self._reset()
-        self._parseFile(filename)
+        self._parseFilePass(filename)
+        self._backpatchPass()
         return self.code
 
     def _reset(self):
         self.code = {}
         self.labels = {}
         self.codeptr = 0
-        self.patchQueue = [] # second stage (resolving forward reference)
+        self.backpatchQueue = [] # second stage (resolving forward reference)
 
-    def _parseFile(self, filename):
+    def _parseFilePass(self, filename):
+        """ assembler first pass: convert source file to binary array """
         assert(type(filename) == str)
         with open(filename, "r") as f:
             parser = AsmLineParser()
@@ -208,6 +211,10 @@ class Assembler(object):
 
                 # increment line number
                 lineno += 1
+
+    def _backpatchPass(self):
+        """ assembler second pass: fill in label addresses """
+        pass
 
     def _putLabel(self, label):
         assert(type(label) == str)
