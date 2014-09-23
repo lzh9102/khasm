@@ -48,5 +48,12 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertRaises(khasm.AsmException, khasm.regToInt, "r16")
         self.assertRaises(khasm.AsmException, khasm.regToInt, "ar0b")
 
+    def testPatchCode(self):
+        self.assertEqual(khasm.patchCode(0x00000000, 0x7f, 8), 0x0000007f)
+        self.assertEqual(khasm.patchCode(0x00000000, 0x7f, 4), 0x0000000f)
+        self.assertEqual(khasm.patchCode(0x00000000, 0x7f, 3), 0x00000007)
+        self.assertEqual(khasm.patchCode(0x00000000, 0x51234, 16), 0x00001234)
+        self.assertEqual(khasm.patchCode(0x00000000, 0x51234, 24), 0x00051234)
+
 if __name__ == "__main__":
     unittest.main()

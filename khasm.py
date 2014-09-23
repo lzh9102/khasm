@@ -117,6 +117,12 @@ def nBitInteger(s, bits):
     except ValueError:
         raise AsmException("invalid integer value: %s" % s)
 
+def patchCode(code, value, bits):
+    """ patch the last bits of <code> to <value> """
+    assert(type(code) == type(value) == type(bits) == int)
+    mask = 2**bits-1
+    return (code & ~mask) | (value & mask)
+
 def int16(s):
     """ convert string to 16 bit signed integer representation """
     try:
@@ -228,11 +234,22 @@ class Assembler(object):
 
     def _backpatchPass(self):
         """ assembler second pass: fill in label addresses """
-        pass
+        for (codeptr, label, bits, relative) in self.backpatchQueue:
+            value = self.labels[label]
+            if relative:
+                value = value - (codeptr + 1)
+            self.code[codeptr] = patchCode(self.code[codeptr], value, bits)
 
     def _putLabel(self, label):
         assert(type(label) == str)
         self.labels[label] = self.codeptr
+
+    def _markForBackpatch(self, index, label, bits, relative):
+        """ Mark the last <bits> bits of the <index> position for later label
+            backpatch (second stage). """
+        assert(type(label) == str)
+        assert(type(relative) == bool)
+        self.backpatchQueue.append((self.codeptr, label, bits, relative))
 
     def _putCode(self, code):
         """ generate a 32-bit integer code """
@@ -290,10 +307,18 @@ class Assembler(object):
         assert(0 <= value <= 16)
         return value
 
-    def _generateImmediate(self, imm, bits):
+    def _generateImmediate(self, imm, bits, relative):
         assert(type(imm) == str)
         assert(type(bits) == int)
-        return nBitInteger(imm, bits)
+        assert(type(relative) == bool)
+        if re.match(r"-?[0-9]+", imm): # is integer
+            return nBitInteger(imm, bits)
+        elif re.match(r"[a-zA-Z0-9_$]+", imm): # is label
+            label = imm
+            self._markForBackpatch(self.codeptr, label, bits, relative)
+            return 0 # temporary fill in zero and wait for backpatch
+        else:
+            raise AsmException("incorrect immediate value: %s" % imm)
 
     def _putInstruction_DA(self, opcode, args):
         reg_d = self._generateRegister(args[0])
@@ -302,13 +327,13 @@ class Assembler(object):
 
     def _putInstruction_DI(self, opcode, args):
         reg_d = self._generateRegister(args[0])
-        imm = self._generateImmediate(args[1], 16)
+        imm = self._generateImmediate(args[1], 16, relative=False)
         self._putCode((opcode << 24) | (reg_d << 20) | (imm))
 
     def _putInstruction_DAI(self, opcode, args):
         reg_d = self._generateRegister(args[0])
         reg_a = self._generateRegister(args[1])
-        imm = self._generateImmediate(args[2], 16)
+        imm = self._generateImmediate(args[2], 16, relative=False)
         self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | imm)
 
     def _putInstruction_DAB(self, opcode, args):
@@ -320,7 +345,7 @@ class Assembler(object):
     def _putInstruction_DAS(self, opcode, args):
         reg_d = self._generateRegister(args[0])
         reg_a = self._generateRegister(args[1])
-        reg_s = self._generateImmediate(args[2], 5)
+        reg_s = self._generateImmediate(args[2], 5, relative=False)
         self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | (reg_s))
 
     def _putInstruction_AB(self, opcode, args):
@@ -330,11 +355,11 @@ class Assembler(object):
 
     def _putInstruction_AI(self, opcode, args):
         reg_a = self._generateRegister(args[0])
-        imm = self._generateImmediate(args[1], 16)
+        imm = self._generateImmediate(args[1], 16, relative=False)
         self._putCode((opcode << 24) | (reg_a << 16) | (imm))
 
     def _putInstruction_I24(self, opcode, args):
-        imm = self._generateImmediate(args[0], 24)
+        imm = self._generateImmediate(args[0], 24, relative=True)
         self._putCode((opcode << 24) | (imm))
 
     def _putInstruction_N(self, opcode, args):
