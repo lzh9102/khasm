@@ -36,5 +36,17 @@ class TestAsmLineParser(unittest.TestCase):
         self.assertListEqual(asm.parseArgLine(" "), [])
         self.assertListEqual(asm.parseArgLine(None), [])
 
+class TestHelperFunctions(unittest.TestCase):
+
+    def testRegToInt(self):
+        self.assertEqual(khasm.regToInt("r0"), 0)
+        self.assertEqual(khasm.regToInt("r1"), 1)
+        self.assertEqual(khasm.regToInt("r5"), 5)
+        self.assertEqual(khasm.regToInt("r10"), 10)
+        self.assertEqual(khasm.regToInt("r11"), 11)
+        self.assertEqual(khasm.regToInt("r15"), 15)
+        self.assertRaises(khasm.AsmException, khasm.regToInt, "r16")
+        self.assertRaises(khasm.AsmException, khasm.regToInt, "ar0b")
+
 if __name__ == "__main__":
     unittest.main()

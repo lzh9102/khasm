@@ -10,10 +10,24 @@ CATEGORY_DAB = 3
 CATEGORY_DAS = 4
 CATEGORY_AB = 5
 CATEGORY_AI = 6
-CATEGORY_I = 7
+CATEGORY_I24 = 7
 CATEGORY_N = 8
 CATEGORY_A = 9
 CATEGORY_D = 10
+
+CATEGORY_ARG_COUNT = {
+    CATEGORY_DA: 2,
+    CATEGORY_DI: 2,
+    CATEGORY_DAI: 3,
+    CATEGORY_DAB: 3,
+    CATEGORY_DAS: 3,
+    CATEGORY_AB: 2,
+    CATEGORY_AI: 2,
+    CATEGORY_I24: 1,
+    CATEGORY_N: 0,
+    CATEGORY_A: 1,
+    CATEGORY_D: 1,
+}
 
 INSTRUCTION = {
 #   mnemonics: opcode+mode, category
@@ -49,22 +63,22 @@ INSTRUCTION = {
     "ldr": (0b00110000, CATEGORY_DA),
     "str": (0b00111000, CATEGORY_DA),
 
-    "bnt": (0b01000000, CATEGORY_I),
-    "beq": (0b01000001, CATEGORY_I),
-    "bne": (0b01000010, CATEGORY_I),
-    "bcs": (0b01000011, CATEGORY_I),
-    "bcc": (0b01000100, CATEGORY_I),
-    "bmi": (0b01000101, CATEGORY_I),
-    "bpl": (0b01000110, CATEGORY_I),
-    "bvs": (0b01000111, CATEGORY_I),
-    "bvc": (0b01001000, CATEGORY_I),
-    "bhi": (0b01001001, CATEGORY_I),
-    "bls": (0b01001010, CATEGORY_I),
-    "bge": (0b01001011, CATEGORY_I),
-    "blt": (0b01001100, CATEGORY_I),
-    "bgt": (0b01001101, CATEGORY_I),
-    "ble": (0b01001110, CATEGORY_I),
-    "bal": (0b01001111, CATEGORY_I),
+    "bnt": (0b01000000, CATEGORY_I24),
+    "beq": (0b01000001, CATEGORY_I24),
+    "bne": (0b01000010, CATEGORY_I24),
+    "bcs": (0b01000011, CATEGORY_I24),
+    "bcc": (0b01000100, CATEGORY_I24),
+    "bmi": (0b01000101, CATEGORY_I24),
+    "bpl": (0b01000110, CATEGORY_I24),
+    "bvs": (0b01000111, CATEGORY_I24),
+    "bvc": (0b01001000, CATEGORY_I24),
+    "bhi": (0b01001001, CATEGORY_I24),
+    "bls": (0b01001010, CATEGORY_I24),
+    "bge": (0b01001011, CATEGORY_I24),
+    "blt": (0b01001100, CATEGORY_I24),
+    "bgt": (0b01001101, CATEGORY_I24),
+    "ble": (0b01001110, CATEGORY_I24),
+    "bal": (0b01001111, CATEGORY_I24),
 
     "jp":  (0b01010000, CATEGORY_A),
     "jpl": (0b01010001, CATEGORY_A),
@@ -79,6 +93,38 @@ ALIAS = {
     "bhs": "bcs",
     "blo": "bcc",
 }
+
+def regToInt(name):
+    """ convert register name to number """
+    match = re.match(r"r([0-9]+)", name)
+    if match:
+        index = int(match.group(1))
+        if 0 <= index <= 15:
+            return index
+    raise AsmException("incorrect register %s" % name)
+
+def int16(s):
+    """ convert string to 16 bit signed integer representation """
+    try:
+        value = int(s)
+        rep = '{0:16b}'.format(value)
+        if len(rep) > 16:
+            raise AsmException("immediate value excceeds 16 bit: %s" % s)
+    except Exception:
+        raise AsmException("incorrect immediate value: %s" % s)
+
+def int24(s):
+    """ convert string to 24 bit signed integer binary representation """
+    try:
+        value = int(s)
+        rep = '{0:24b}'.format(value)
+        if len(rep) > 24:
+            raise AsmException("immediate value excceeds 24 bit: %s" % s)
+    except Exception:
+        raise AsmException("incorrect immediate value: %s" % s)
+
+class AsmException(Exception):
+    pass
 
 class AsmLineParser(object):
 
@@ -125,12 +171,18 @@ class AsmLineParser(object):
 class Assembler(object):
 
     def __init__(self):
+        self._reset()
+
+    def assembleFile(self, filename):
+        self._reset()
+        self._parseFile(filename)
+        return self.code
+
+    def _reset(self):
         self.code = {}
         self.labels = {}
         self.codeptr = 0
-
-    def assembleFile(self, filename):
-        self._parseFile(filename)
+        self.patchQueue = [] # second stage (resolving forward reference)
 
     def _parseFile(self, filename):
         assert(type(filename) == str)
@@ -140,7 +192,7 @@ class Assembler(object):
             for line in f:
                 # parse
                 if not parser.parseLine(line):
-                    raise Exception("line %d: syntax error" % (lineno))
+                    raise AsmException("line %d: syntax error" % (lineno))
                 label = parser.getLabel()
                 instruction = parser.getInstruction()
                 args = parser.getArgs()
@@ -151,8 +203,8 @@ class Assembler(object):
                         self._putLabel(label)
                     if instruction:
                         self._putInstruction(instruction, args)
-                except Exception as e:
-                    raise Exception("line %d: %s" % (lineno, str(e)))
+                except AsmException as e:
+                    raise AsmException("line %d: %s" % (lineno, str(e)))
 
                 # increment line number
                 lineno += 1
@@ -171,11 +223,137 @@ class Assembler(object):
         if instruction in ALIAS: # substitute alias
             instruction = ALIAS[instruction]
         if instruction not in INSTRUCTION:
-            raise Exception("unknown instruction %s" % (instruction))
+            raise AsmException("unknown instruction %s" % (instruction))
+        # get instruction info
+        info = INSTRUCTION[instruction]
+        opcode = info[0]
+        category = info[1]
+
+        # check number of arguments
+        assert(category in CATEGORY_ARG_COUNT)
+        expected_arg_count = CATEGORY_ARG_COUNT[category]
+        if len(args) != expected_arg_count:
+            raise AsmException("incorrect number of arguments. except %d, got %d"
+                               % (expected_arg_count, len(args)))
+
+        # call handler
+        if category == CATEGORY_DA:
+            handler = self._putInstruction_DA
+        elif category == CATEGORY_DI:
+            handler = self._putInstruction_DI
+        elif category == CATEGORY_DAI:
+            handler = self._putInstruction_DAI
+        elif category == CATEGORY_DAB:
+            handler = self._putInstruction_DAB
+        elif category == CATEGORY_DAS:
+            handler = self._putInstruction_DAS
+        elif category == CATEGORY_AB:
+            handler = self._putInstruction_AB
+        elif category == CATEGORY_AI:
+            handler = self._putInstruction_AI
+        elif category == CATEGORY_I24:
+            handler = self._putInstruction_I24
+        elif category == CATEGORY_N:
+            handler = self._putInstruction_N
+        elif category == CATEGORY_A:
+            handler = self._putInstruction_A
+        elif category == CATEGORY_D:
+            handler = self._putInstruction_D
+        else:
+            assert(False) # unhandled instruction category
+        handler(opcode, args)
+
+    def _generateRegister(self, reg):
+        assert(type(reg) == str)
+        value = regToInt(reg)
+        assert(0 <= value <= 16)
+        return value
+
+    def _generateImmediate(self, imm, bits):
+        assert(type(imm) == str)
+        assert(type(bits) == int)
+        try:
+            value = int(s)
+            rep = ('{0:' + bits + 'b}').format(value)
+            if len(rep) > bits:
+                raise AsmException("immediate value excceeds %d bit: %s"
+                                   % (bits, s))
+        except Exception:
+            raise AsmException("incorrect immediate value: %s" % imm)
+
+    def _putInstruction_DA(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        reg_a = self._generateRegister(args[1])
+        self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16))
+
+    def _putInstruction_DI(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        imm = self._generateImmediate(args[1], 16)
+        self._putCode((opcode << 24) | (reg_d << 20) | (imm))
+
+    def _putInstruction_DAI(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        reg_a = self._generateRegister(args[1])
+        imm = self._generateRegister(args[2], 16)
+        self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | imm)
+
+    def _putInstruction_DAB(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        reg_a = self._generateRegister(args[1])
+        reg_b = self._generateRegister(args[2])
+        self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | (reg_b << 12))
+
+    def _putInstruction_DAS(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        reg_a = self._generateRegister(args[1])
+        reg_s = self._generateImmediate(args[2], 5)
+        self._putCode((opcode << 24) | (reg_d << 20) | (reg_a << 16) | (reg_s))
+
+    def _putInstruction_AB(self, opcode, args):
+        reg_a = self._generateRegister(args[0])
+        reg_b = self._generateRegister(args[1])
+        self._putCode((opcode << 24) | (reg_a << 16) | (reg_b << 12))
+
+    def _putInstruction_AI(self, opcode, args):
+        reg_a = self._generateRegister(args[0])
+        imm = self._generateImmediate(args[1], 16)
+        self._putCode((opcode << 24) | (reg_a << 16) | (imm))
+
+    def _putInstruction_I24(self, opcode, args):
+        imm = self._generateImmediate(args[0], 24)
+        self._putCode((opcode << 24) | (imm))
+
+    def _putInstruction_N(self, opcode, args):
+        self._putCode((opcode << 24))
+
+    def _putInstruction_A(self, opcode, args):
+        reg_a = self._generateRegister(args[0])
+        self._putCode((opcode << 24) | (reg_a << 16))
+
+    def _putInstruction_D(self, opcode, args):
+        reg_d = self._generateRegister(args[0])
+        self._putCode((opcode << 24) | (reg_d << 20))
+
+class CoeWriter(object):
+
+    def __init__(self, file=sys.stdout):
+        self.fout = file
+
+    def write(self, code):
+        assert(type(code) == dict)
+        self.fout.write("MEMORY_INITIALIZATION_RADIX=2;\n")
+        self.fout.write("MEMORY_INITIALIZATION_VECTOR=\n")
+        for index in sorted(code.keys()):
+            assert(type(index) == int)
+            line = '{0:032b},\n'.format(code[index])
+            self.fout.write(line)
 
 if __name__ == "__main__":
     asm = Assembler()
     try:
-        asm.assembleFile(sys.argv[1])
-    except Exception as e:
+        code = asm.assembleFile(sys.argv[1])
+        with open("output.coe", "w") as f:
+            writer = CoeWriter(f)
+            writer.write(code)
+    except AsmException as e:
         print("error: %s" % (str(e)))
