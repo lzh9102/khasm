@@ -109,6 +109,8 @@ def nBitInteger(s, bits):
     """
     try:
         value = int(s)
+        if value < 0: # negative number: convert to 2's complement
+            value = (2**bits) + value
         rep = ('{0:' + str(bits) + 'b}').format(value)
         if len(rep) > bits:
             raise AsmException("immediate value excceeds %d bit: %s"

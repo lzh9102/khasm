@@ -55,5 +55,10 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertEqual(khasm.patchCode(0x00000000, 0x51234, 16), 0x00001234)
         self.assertEqual(khasm.patchCode(0x00000000, 0x51234, 24), 0x00051234)
 
+    def testNBitInteger(self):
+        self.assertEqual(khasm.nBitInteger("3", 8), 0x03)
+        self.assertEqual(khasm.nBitInteger("-3", 8), 0xfd)
+        self.assertRaises(khasm.AsmException, khasm.nBitInteger, "-3", 1)
+
 if __name__ == "__main__":
     unittest.main()
