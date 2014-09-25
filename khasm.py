@@ -402,12 +402,29 @@ class TextFormatWriter(object):
             line = "%(addr)x %(value)x\n" % {'addr': index, 'value': code[index]}
             self.fout.write(line)
 
+class CArrayWriter(object):
+
+    def __init__(self, file=sys.stdout):
+        self.fout = file
+
+    def write(self, code):
+        assert(type(code) == dict)
+        self.fout.write("const unsigned int khasm_code[][2] = {\n")
+        count = 0
+        for index in sorted(code.keys()):
+            assert(type(index) == int)
+            line = "{0x%(addr)x, 0x%(value)08x},\n" % {'addr': index, 'value': code[index]}
+            self.fout.write(line)
+            count += 1
+        self.fout.write("};\n")
+        self.fout.write("const unsigned int khasm_code_size = %d;\n" % count)
+
 if __name__ == "__main__":
     asm = Assembler()
     try:
         code = asm.assembleFile(sys.argv[1])
-        with open("output.txt", "w") as f:
-            writer = TextFormatWriter(f)
+        with open("output.h", "w") as f:
+            writer = CArrayWriter(f)
             writer.write(code)
     except AsmException as e:
         print("error: %s" % (str(e)))
