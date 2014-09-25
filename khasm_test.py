@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Author: Che-Huai Lin <lzh9102.ee03g@nctu.edu.tw>
 
 import unittest
 import khasm
